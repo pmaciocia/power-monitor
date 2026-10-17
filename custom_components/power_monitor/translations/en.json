@@ -3,6 +3,7 @@
     "step": {
       "user": {
         "title": "Add appliance",
+        "description": "Monitor an appliance through the power sensor on its plug. Cycles are detected from its power usage and used to estimate when future cycles will end.",
         "data": {
           "name": "Name",
           "power_entity": "Power sensor",
