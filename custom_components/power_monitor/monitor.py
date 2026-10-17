@@ -40,6 +40,7 @@ from .const import (
     DOMAIN,
     MAX_CYCLES_PER_PROGRAM,
     MAX_UNLABELLED_CYCLES,
+    MIN_CYCLE_DURATION,
     STEP,
     STORAGE_VERSION,
 )
@@ -130,7 +131,12 @@ class CycleMonitor:
         readings = [(start + timedelta(seconds=s), p) for s, p in current["readings"]]
         self.selected_program = current.get("program")
         _LOGGER.debug("Resuming %s cycle started %s", self.power_entity, start)
-        self.detector.resume(Cycle(start=start, readings=readings), dt_util.utcnow())
+        cycle = Cycle(
+            start=start,
+            readings=readings,
+            observed_start=current.get("observed_start", True),
+        )
+        self.detector.resume(cycle, dt_util.utcnow())
 
     # Listeners for entities
 
@@ -170,6 +176,20 @@ class CycleMonitor:
 
     def _on_end(self, cycle: Cycle) -> None:
         assert cycle.end is not None
+        if not cycle.observed_start:
+            _LOGGER.debug("%s cycle joined part way, not recorded", self.power_entity)
+        elif cycle.end - cycle.start < MIN_CYCLE_DURATION:
+            _LOGGER.debug("%s cycle too short, not recorded", self.power_entity)
+        else:
+            self._record(cycle)
+        self.selected_program = None
+        self._matcher = None
+        self.estimate = None
+        self.estimated_end = None
+        self._store.async_delay_save(self._data_to_save, 0)
+
+    def _record(self, cycle: Cycle) -> None:
+        assert cycle.end is not None
         program, source = self.selected_program, "user"
         if program is None and self.estimate and self.estimate.program:
             confidence = self.estimate.confidence
@@ -196,11 +216,6 @@ class CycleMonitor:
             }
         )
         self._prune()
-        self.selected_program = None
-        self._matcher = None
-        self.estimate = None
-        self.estimated_end = None
-        self._store.async_delay_save(self._data_to_save, 0)
 
     # Estimation
 
@@ -208,6 +223,10 @@ class CycleMonitor:
     def _refresh(self) -> None:
         cycle = self.detector.cycle
         if self.detector.state is CycleState.RUNNING and cycle is not None:
+            self._store.async_delay_save(self._data_to_save, SAVE_DELAY)
+        # Matching aligns from the start, so a cycle joined part way can't be
+        # placed against recorded ones.
+        if self.running and cycle is not None and cycle.observed_start:
             now = dt_util.utcnow()
             if self._matcher is None:
                 self._matcher = CycleMatcher(self._templates(), STEP)
@@ -219,7 +238,6 @@ class CycleMonitor:
                 if remaining is not None
                 else None
             )
-            self._store.async_delay_save(self._data_to_save, SAVE_DELAY)
         self._notify()
 
     def _templates(self) -> list[Template]:
@@ -291,6 +309,7 @@ class CycleMonitor:
             data["current"] = {
                 "start": cycle.start.isoformat(),
                 "program": self.selected_program,
+                "observed_start": cycle.observed_start,
                 "readings": [
                     [round((ts - cycle.start).total_seconds(), 1), p]
                     for ts, p in cycle.readings

@@ -46,6 +46,10 @@ class Cycle:
     start: datetime
     readings: list[tuple[datetime, float]] = field(default_factory=list)
     end: datetime | None = None
+    # False when monitoring began part way through the cycle, e.g. the
+    # integration was set up while the appliance was already running. The
+    # start time is then only when the cycle was first noticed.
+    observed_start: bool = True
 
 
 class CycleDetector:
@@ -65,8 +69,14 @@ class CycleDetector:
         self._on_end = on_end
         self._last_update: datetime | None = None
         self._last_power = 0.0
+        # Waiting for a start: when power first rose above the start power,
+        # when it last dipped back below it, and the readings since.
         self._above_since: datetime | None = None
+        self._dip_since: datetime | None = None
         self._pending: list[tuple[datetime, float]] = []
+        # Start of the current stretch below the start power while waiting.
+        self._quiet_since: datetime | None = None
+        self._pending_observed = False
         self._below_since: datetime | None = None
         self._finished_at: datetime | None = None
 
@@ -110,19 +120,44 @@ class CycleDetector:
             self._process_waiting(ts, power, record=record)
 
     def _process_waiting(self, ts: datetime, power: float, *, record: bool) -> None:
-        if power < self.config.start_power:
-            self._above_since = None
-            self._pending.clear()
-            return
+        config = self.config
         if self._above_since is None:
+            if power < config.start_power:
+                if self._quiet_since is None:
+                    self._quiet_since = ts
+                return
+            # Only a cycle that follows a quiet spell as long as the end delay
+            # is known to have been seen from its start.
             self._above_since = ts
+            self._dip_since = None
+            self._pending_observed = (
+                self._quiet_since is not None
+                and ts - self._quiet_since >= config.end_delay - _JITTER
+            )
         if record:
             self._pending.append((ts, power))
-        if ts - self._above_since < self.config.start_delay - _JITTER:
+        if power < config.start_power:
+            # Drum pauses dip below the start power for a reading or two, so
+            # a start is only abandoned after a dip as long as the start delay.
+            if self._dip_since is None:
+                self._dip_since = ts
+            if ts - self._dip_since >= config.start_delay - _JITTER:
+                if self._quiet_since is None:
+                    self._quiet_since = self._dip_since
+                self._above_since = None
+                self._pending.clear()
             return
-        self.cycle = Cycle(start=self._above_since, readings=list(self._pending))
+        self._dip_since = None
+        if ts - self._above_since < config.start_delay - _JITTER:
+            return
+        self.cycle = Cycle(
+            start=self._above_since,
+            readings=list(self._pending),
+            observed_start=self._pending_observed,
+        )
         self.state = CycleState.RUNNING
         self._above_since = None
+        self._quiet_since = None
         self._below_since = None
         self._pending.clear()
         if self._on_start:
@@ -146,6 +181,7 @@ class CycleDetector:
         self.cycle = None
         self.state = CycleState.FINISHED
         self._finished_at = ts
+        self._quiet_since = cycle.end
         self._below_since = None
         if self._on_end:
             self._on_end(cycle)

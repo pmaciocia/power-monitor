@@ -36,6 +36,10 @@ UNKNOWN_PROGRAM = "Unknown"
 # least this clear a winner and nobody picked a program during the run.
 AUTO_LABEL_CONFIDENCE = 0.3
 
+# Shorter cycles aren't recorded: they're false starts, e.g. a spike while
+# buttons are pressed, rather than a program.
+MIN_CYCLE_DURATION = timedelta(minutes=10)
+
 # Recorded cycles kept per labelled program, and unlabelled cycles kept.
 MAX_CYCLES_PER_PROGRAM = 10
 MAX_UNLABELLED_CYCLES = 10

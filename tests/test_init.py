@@ -47,6 +47,8 @@ async def run(
 
 
 WASH = [2000.0] * 20 + [150.0] * 40 + [400.0] * 10 + [0.0] * 12
+# Standby long enough for the next start to count as seen from the start.
+IDLE = [1.5] * 12
 
 
 async def test_entities_created(hass: HomeAssistant) -> None:
@@ -66,7 +68,7 @@ async def test_cycle_recorded_labelled_and_matched(
     entry = await setup(hass)
 
     # First wash: no history, so no estimate.
-    await run(hass, freezer, WASH[:30])
+    await run(hass, freezer, IDLE + WASH[:30])
     assert hass.states.get("sensor.washing_machine_state").state == "running"
     assert hass.states.get("binary_sensor.washing_machine_running").state == "on"
     assert hass.states.get("sensor.washing_machine_estimated_end").state == "unknown"
@@ -98,12 +100,32 @@ async def test_running_cycle_survives_reload(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
     entry = await setup(hass)
-    await run(hass, freezer, WASH[:30])
+    await run(hass, freezer, IDLE + WASH[:30])
     start = hass.states.get("sensor.washing_machine_cycle_start").state
 
     assert await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
 
     assert hass.states.get("sensor.washing_machine_state").state == "running"
-    assert hass.states.get("sensor.washing_machine_cycle_start").state == start
+    cycle_start = hass.states.get("sensor.washing_machine_cycle_start")
+    assert cycle_start.state == start
+    assert cycle_start.attributes["start_observed"] is True
     assert len(entry.runtime_data.detector.cycle.readings) >= 30
+
+
+async def test_cycle_joined_part_way_is_not_recorded(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Set up while the machine is already mid-wash, with drum pauses."""
+    entry = await setup(hass)
+    await run(hass, freezer, [150.0, 155.0, 2.4] * 10)
+
+    assert hass.states.get("sensor.washing_machine_state").state == "running"
+    cycle_start = hass.states.get("sensor.washing_machine_cycle_start")
+    assert cycle_start.attributes["start_observed"] is False
+    assert hass.states.get("sensor.washing_machine_estimated_end").state == "unknown"
+
+    await run(hass, freezer, [400.0] * 10 + [0.0] * 12)
+    assert hass.states.get("sensor.washing_machine_state").state == "finished"
+    assert entry.runtime_data.cycles == []
+    assert hass.states.get("sensor.washing_machine_estimated_end").state != "unknown"

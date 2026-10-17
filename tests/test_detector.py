@@ -74,3 +74,45 @@ def test_finished_timeout_returns_to_idle():
 
     _, detector = replay(readings, config, until=START + timedelta(minutes=60))
     assert detector.state is CycleState.IDLE
+
+
+# The wash phase: drum on for a minute, then a 30 s pause at ~2.4 W.
+WASH_PHASE = [150, 155, 2.4] * 10
+
+
+def test_drum_pauses_do_not_prevent_start():
+    _, detector = replay(readings_every_30s([1.5] * 12 + WASH_PHASE))
+
+    assert detector.state is CycleState.RUNNING
+    assert detector.cycle.start == START + timedelta(minutes=6)
+    assert detector.cycle.observed_start
+
+
+def test_joined_part_way_is_not_observed_start():
+    """Set up while the machine is already mid-wash."""
+    _, detector = replay(readings_every_30s(WASH_PHASE))
+
+    assert detector.state is CycleState.RUNNING
+    assert not detector.cycle.observed_start
+
+
+def test_short_quiet_before_start_is_not_observed_start():
+    """A rinse pause shorter than the end delay doesn't count as idle."""
+    _, detector = replay(readings_every_30s([2.4] * 6 + WASH_PHASE))
+
+    assert not detector.cycle.observed_start
+
+
+def test_spike_is_not_a_start():
+    _, detector = replay(readings_every_30s([1.5] * 12 + [120] + [1.5] * 10))
+
+    assert detector.state is CycleState.IDLE
+
+
+def test_cycle_after_finished_is_observed_start():
+    readings = readings_every_30s([1.5] * 12 + [2000] * 10 + [0] * 12 + WASH_PHASE)
+
+    cycles, detector = replay(readings)
+
+    assert cycles[0].observed_start
+    assert detector.cycle.observed_start

@@ -47,11 +47,19 @@ class CycleStartSensor(PowerMonitorEntity, SensorEntity):
 
     @property
     def native_value(self) -> datetime | None:
-        if (cycle := self.monitor.detector.cycle) is not None:
+        detector = self.monitor.detector
+        if (cycle := detector.cycle or detector.last_cycle) is not None:
             return cycle.start
         if last := self.monitor.last_cycle:
             return dt_util.parse_datetime(last["start"])
         return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        detector = self.monitor.detector
+        cycle = detector.cycle or detector.last_cycle
+        # A cycle already running when monitoring began starts when noticed.
+        return {"start_observed": cycle.observed_start if cycle else None}
 
 
 class EstimatedEndSensor(PowerMonitorEntity, SensorEntity):
@@ -63,6 +71,8 @@ class EstimatedEndSensor(PowerMonitorEntity, SensorEntity):
     def native_value(self) -> datetime | None:
         if self.monitor.running:
             return self.monitor.estimated_end
+        if (cycle := self.monitor.detector.last_cycle) is not None:
+            return cycle.end
         if last := self.monitor.last_cycle:
             return dt_util.parse_datetime(last["end"])
         return None
