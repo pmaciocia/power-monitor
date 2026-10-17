@@ -49,7 +49,11 @@ uv run ruff check custom_components tests
 
 ## Releasing
 
-Bump `version` in `custom_components/power_monitor/manifest.json`, commit, then push a matching tag (`git tag v0.1.0 && git push --tags`). The release workflow checks the tag matches the manifest and creates the GitHub release that HACS installs from.
+1. Bump `version` in `custom_components/power_monitor/manifest.json` and `pyproject.toml`.
+2. Add a `## <version>` section to `CHANGELOG.md` describing the changes for users.
+3. Commit, then push a matching tag: `git tag -a v0.1.2 -m v0.1.2 && git push origin v0.1.2`.
+
+The release workflow checks the tag matches the manifest, then creates the GitHub release that HACS installs from, with that version's changelog section as its notes. It fails if the section is missing.
 
 ## License
 

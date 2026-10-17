@@ -20,6 +20,17 @@ jobs:
             echo "Tag $GITHUB_REF_NAME does not match manifest version $version"
             exit 1
           fi
-      - run: gh release create "$GITHUB_REF_NAME" --generate-notes
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          # The section under "## <version>", up to the next "## " heading.
+          awk -v version="${GITHUB_REF_NAME#v}" '
+            /^## / { if (found) exit; found = ($2 == version); next }
+            found
+          ' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "No CHANGELOG.md section for ${GITHUB_REF_NAME#v}"
+            exit 1
+          fi
+      - run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md
         env:
           GH_TOKEN: ${{ github.token }}
