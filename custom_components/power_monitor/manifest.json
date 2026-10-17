@@ -1,0 +1,12 @@
+{
+  "domain": "power_monitor",
+  "name": "Power Monitor",
+  "codeowners": ["@pmaciocia"],
+  "config_flow": true,
+  "documentation": "https://github.com/pmaciocia/power-monitor",
+  "integration_type": "helper",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/pmaciocia/power-monitor/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
