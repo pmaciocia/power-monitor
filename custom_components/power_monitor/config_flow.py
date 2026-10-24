@@ -5,9 +5,15 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_NAME, UnitOfPower, UnitOfTime
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.helpers import selector
 import voluptuous as vol
 
@@ -38,6 +44,9 @@ def _number(maximum: float, unit: str, step: float = 1) -> selector.NumberSelect
 
 
 PROGRAMS_SELECTOR = selector.TextSelector(selector.TextSelectorConfig(multiple=True))
+POWER_SELECTOR = selector.EntitySelector(
+    selector.EntitySelectorConfig(domain="sensor", device_class=SensorDeviceClass.POWER)
+)
 
 OPTIONS_SCHEMA = vol.Schema(
     {
@@ -74,15 +83,38 @@ class PowerMonitorConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_NAME): selector.TextSelector(),
-                    vol.Required(CONF_POWER_ENTITY): selector.EntitySelector(
-                        selector.EntitySelectorConfig(
-                            domain="sensor", device_class=SensorDeviceClass.POWER
-                        )
-                    ),
+                    vol.Required(CONF_POWER_ENTITY): POWER_SELECTOR,
                     vol.Optional(CONF_PROGRAMS): PROGRAMS_SELECTOR,
                 }
             ),
         )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Change the power sensor, keeping the recorded cycles."""
+        entry = self._get_reconfigure_entry()
+        if user_input is not None:
+            await self.async_set_unique_id(user_input[CONF_POWER_ENTITY])
+            self._abort_if_monitored_by_other_entry(entry)
+            return self.async_update_reload_and_abort(
+                entry,
+                unique_id=user_input[CONF_POWER_ENTITY],
+                data_updates={CONF_POWER_ENTITY: user_input[CONF_POWER_ENTITY]},
+            )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema({vol.Required(CONF_POWER_ENTITY): POWER_SELECTOR}),
+                entry.data,
+            ),
+        )
+
+    def _abort_if_monitored_by_other_entry(self, entry: ConfigEntry) -> None:
+        """Abort if another entry already monitors the chosen sensor."""
+        for other in self._async_current_entries(include_ignore=False):
+            if other.entry_id != entry.entry_id and other.unique_id == self.unique_id:
+                raise AbortFlow("already_configured")
 
     @staticmethod
     @callback

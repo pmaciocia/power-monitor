@@ -10,13 +10,24 @@
           "programs": "Programs"
         },
         "data_description": {
-          "power_entity": "Power sensor (W) for the appliance's plug. Prefer the unfiltered sensor: smoothing filters hold their last value after the appliance switches off.",
+          "power_entity": "Power sensor (W) for the appliance's plug. Prefer the unfiltered sensor: smoothing filters lag and hold their last value after the appliance switches off.",
           "programs": "Program names to label cycles with, e.g. Cottons, Eco. You can add more later."
+        }
+      },
+      "reconfigure": {
+        "title": "Change power sensor",
+        "description": "Recorded cycles are kept, so pick a sensor measuring the same appliance.",
+        "data": {
+          "power_entity": "Power sensor"
+        },
+        "data_description": {
+          "power_entity": "Power sensor (W) for the appliance's plug. Prefer the unfiltered sensor: smoothing filters lag and hold their last value after the appliance switches off."
         }
       }
     },
     "abort": {
-      "already_configured": "This power sensor is already monitored."
+      "already_configured": "This power sensor is already monitored.",
+      "reconfigure_successful": "The power sensor was changed."
     }
   },
   "options": {
@@ -32,7 +43,7 @@
           "finished_timeout": "Finished timeout"
         },
         "data_description": {
-          "start_power": "A cycle starts when power stays at or above this for the start delay.",
+          "start_power": "A cycle starts once power has been at or above this for the start delay. Dips shorter than the start delay, like drum pauses, don't reset it.",
           "end_power": "A cycle ends when power stays below this for the end delay. Make the delay longer than any pause mid-cycle.",
           "stale_timeout": "If the sensor sends nothing for this long, treat power as 0 W from its last update. 0 disables.",
           "finished_timeout": "How long the state stays finished before returning to idle. 0 keeps it until the next cycle."
@@ -58,7 +69,32 @@
       },
       "cycle_start": { "name": "Cycle start" },
       "estimated_end": { "name": "Estimated end" },
-      "detected_program": { "name": "Detected program" }
+      "detected_program": { "name": "Detected program" },
+      "recorded_cycles": { "name": "Recorded cycles" }
+    }
+  },
+  "services": {
+    "forget_cycle": {
+      "name": "Forget cycle",
+      "description": "Deletes a recorded cycle so it's no longer used for matching, e.g. one that was cut short or mislabelled.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Appliance",
+          "description": "The Power Monitor entry the cycle belongs to."
+        },
+        "cycle_id": {
+          "name": "Cycle ID",
+          "description": "ID of the cycle, from the cycles attribute of the Recorded cycles sensor."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "entry_not_loaded": {
+      "message": "Power Monitor entry {entry_id} was not found or isn't loaded."
+    },
+    "cycle_not_found": {
+      "message": "No recorded cycle with ID {cycle_id}."
     }
   }
 }

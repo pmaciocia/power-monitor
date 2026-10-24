@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
@@ -27,6 +28,7 @@ async def async_setup_entry(
             CycleStartSensor(monitor, "cycle_start"),
             EstimatedEndSensor(monitor, "estimated_end"),
             ProgramSensor(monitor, "detected_program"),
+            RecordedCyclesSensor(monitor, "recorded_cycles"),
         ]
     )
 
@@ -112,8 +114,35 @@ class ProgramSensor(PowerMonitorEntity, SensorEntity):
                 "source": "user" if monitor.selected_program else "detected",
                 "confidence": estimate.confidence if estimate else None,
             }
-        last = monitor.last_cycle
+        last = monitor.labelled_cycle
         return {
             "source": last["label_source"] if last else None,
             "confidence": None,
         }
+
+
+class RecordedCyclesSensor(PowerMonitorEntity, SensorEntity):
+    """Number of recorded cycles, listed with their ids for forget_cycle."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    @property
+    def native_value(self) -> int:
+        return len(self.monitor.cycles)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        cycles = []
+        for cycle in reversed(self.monitor.cycles):
+            start = dt_util.parse_datetime(cycle["start"])
+            end = dt_util.parse_datetime(cycle["end"])
+            assert start is not None and end is not None
+            cycles.append(
+                {
+                    "id": cycle["id"],
+                    "program": cycle["program"],
+                    "start": start.isoformat(),
+                    "minutes": round((end - start).total_seconds() / 60),
+                }
+            )
+        return {"cycles": cycles}

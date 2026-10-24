@@ -1,6 +1,6 @@
 [project]
 name = "power-monitor"
-version = "0.1.1"
+version = "0.1.2"
 description = "Home Assistant integration that detects appliance cycles from power usage and estimates when they end"
 requires-python = ">=3.14"
 license = "MIT"

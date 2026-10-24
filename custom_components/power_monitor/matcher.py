@@ -154,10 +154,14 @@ class CycleMatcher:
         band_fraction: float = 0.25,
         min_band: int = 20,
         neighbours: int = 3,
+        overrun_grace: int = 10,
     ) -> None:
         self.step = step
         self.samples = 0
         self._neighbours = neighbours
+        # Samples the live cycle may run past a template's end before that
+        # template stops counting towards the remaining time.
+        self._overrun_grace = overrun_grace
         self._alignments = [
             _Alignment(t, band_fraction, min_band) for t in templates if t.samples
         ]
@@ -187,12 +191,15 @@ class CycleMatcher:
         confidence = None
         if program is None:
             program, confidence = _detect_program(matches)
+        # A template the live cycle has clearly outrun can only say "any moment
+        # now", which stays wrong for as long as the overrun lasts.
+        usable = [m for m in matches if not self._overrun(m)]
         candidates = [
-            m for m in matches if program is None or m.template.program == program
+            m for m in usable if program is None or m.template.program == program
         ]
         if not candidates:
-            # Nothing recorded for this program yet, so use the closest of any.
-            candidates = matches
+            # Nothing usable recorded for this program, so use the closest of any.
+            candidates = usable
         nearest = candidates[: self._neighbours]
         remaining = None
         if nearest:
@@ -203,6 +210,13 @@ class CycleMatcher:
             ) / sum(weights)
             remaining = timedelta(seconds=round(seconds))
         return Estimate(program, confidence, remaining, tuple(nearest))
+
+    def _overrun(self, match: TemplateMatch) -> bool:
+        """Whether the live cycle has gone well past the end of the template."""
+        length = len(match.template.samples)
+        return (
+            match.position == length - 1 and self.samples - length > self._overrun_grace
+        )
 
 
 def _detect_program(

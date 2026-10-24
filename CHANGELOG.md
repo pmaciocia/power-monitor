@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.2
+
+### Fixed
+
+- **A cycle joined part way could still be learned from after upgrading to 0.1.1.** A cycle in progress during the upgrade had been saved by 0.1.0 without the "seen from its start" flag, and 0.1.1 assumed it was. It is now treated as joined part way. If an earlier cycle was recorded this way, remove it with the new **Forget cycle** action.
+- **The estimate no longer sits at "any moment now" after a cycle outruns the recorded ones.** Once the running cycle is more than 5 minutes past the end of a recorded cycle, that recorded cycle stops counting towards the remaining time. If none are left, the estimated end shows as unknown rather than now.
+- **Choosing a program after a cycle that wasn't recorded no longer relabels an older cycle.** After a short or part-way cycle, the program select shows Unknown and leaves the recorded cycles alone.
+
+### Added
+
+- **Forget cycle** action (`power_monitor.forget_cycle`) to delete a recorded cycle that was cut short or mislabelled.
+- **Recorded cycles** diagnostic sensor: the number of recorded cycles, with each one's ID, program, start and length in its `cycles` attribute.
+- **Reconfigure** option to change an appliance's power sensor without losing its recorded cycles, e.g. to move from a smoothed sensor to the raw one.
+
 ## 0.1.1
 
 ### Fixed

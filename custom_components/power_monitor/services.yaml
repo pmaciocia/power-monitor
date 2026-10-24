@@ -1,0 +1,12 @@
+forget_cycle:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: power_monitor
+    cycle_id:
+      required: true
+      example: 51c6524d78004d5489335fc77553ec88
+      selector:
+        text:

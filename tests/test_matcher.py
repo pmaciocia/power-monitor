@@ -84,3 +84,29 @@ def test_no_templates_gives_no_estimate():
     matcher.extend([2000.0] * 10)
 
     assert matcher.estimate().remaining is None
+
+
+def test_overrun_template_stops_counting():
+    """Running well past a template's end shouldn't pin the estimate at zero."""
+    short = Template("short", "Cottons", [2000.0] * 20 + [150.0] * 20)
+    long = Template("long", "Easy-care", [2000.0] * 20 + [150.0] * 60)
+    live = [2000.0] * 20 + [150.0] * 55
+
+    matcher = CycleMatcher([short], STEP)
+    matcher.extend(live)
+    assert matcher.estimate("Cottons").remaining is None
+
+    # Falls back to a template that hasn't been outrun.
+    matcher = CycleMatcher([short, long], STEP)
+    matcher.extend(live)
+    estimate = matcher.estimate("Cottons")
+    assert [m.template.id for m in estimate.matches] == ["long"]
+    assert estimate.remaining == STEP * 5
+
+
+def test_just_past_template_end_still_counts():
+    template = Template("t", None, [2000.0] * 20 + [150.0] * 20)
+    matcher = CycleMatcher([template], STEP)
+    matcher.extend([2000.0] * 20 + [150.0] * 25)
+
+    assert matcher.estimate().remaining == timedelta(0)

@@ -12,11 +12,12 @@ You add one entry per appliance. Each entry creates a device with:
 | `sensor.<name>_estimated_end` | estimated end, or when the last cycle ended. Attributes: `remaining_minutes`, `progress`, `matched_cycles` |
 | `sensor.<name>_detected_program` | program of the running or last cycle. Attributes: `source`, `confidence` |
 | `select.<name>_program` | set it during a run to override detection, or after a run to label it |
+| `sensor.<name>_recorded_cycles` | (diagnostic) number of recorded cycles. Attribute `cycles` lists each one's `id`, `program`, `start` and `minutes` |
 
 ## How it works
 
-1. **Detection** (`detector.py`): a cycle starts when power stays at or above *start power* for *start delay*. It ends when power stays below *end power* for *end delay*. If the sensor sends nothing for the *no-update timeout*, power is treated as 0 W from its last update. This is needed because smoothing filters hold their last value once the appliance switches off.
-2. **Recording**: each finished cycle is stored as 30 s time-weighted averages (`.storage/power_monitor.<entry_id>`).
+1. **Detection** (`detector.py`): a cycle starts once power has been at or above *start power* for *start delay*. Dips shorter than the start delay, like drum pauses, don't reset it. It ends when power stays below *end power* for *end delay*. If the sensor sends nothing for the *no-update timeout*, power is treated as 0 W from its last update. This is needed because smoothing filters hold their last value once the appliance switches off.
+2. **Recording**: each finished cycle is stored as 30 s time-weighted averages (`.storage/power_monitor.<entry_id>`). Cycles under 10 minutes aren't recorded. Neither are cycles already running when monitoring began, which are cycles not preceded by a quiet spell at least as long as the end delay.
 3. **Matching** (`matcher.py`): while a cycle runs, it is compared against the start of every recorded cycle using open-ended dynamic time warping. This finds how far through each recorded cycle the current one has got, even when phases run longer or shorter. The closest recorded cycles give the remaining time. The closest labelled ones give the program.
 4. **Labelling**: pick a program in the select during a run or after it. A cycle with no program picked is labelled with the detected program only when that program clearly beats the next closest one.
 
@@ -35,7 +36,18 @@ Copy `custom_components/power_monitor` into `/config/custom_components/` and res
 
 ### Set up
 
-Go to **Settings → Devices & services → Add integration → Power Monitor**. Thresholds and programs are under the entry's **Configure** button.
+Go to **Settings → Devices & services → Add integration → Power Monitor**. Thresholds and programs are under the entry's **Configure** button. To switch to a different power sensor and keep the recorded cycles, use **Reconfigure** from the entry's menu.
+
+### Removing a bad recorded cycle
+
+If a recorded cycle is wrong, for example cut short, delete it with the **Forget cycle** action. Get its ID from the `cycles` attribute of the Recorded cycles sensor:
+
+```yaml
+action: power_monitor.forget_cycle
+data:
+  config_entry_id: <entry id>
+  cycle_id: 51c6524d78004d5489335fc77553ec88
+```
 
 ## Development
 

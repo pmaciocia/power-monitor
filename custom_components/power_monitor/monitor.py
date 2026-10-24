@@ -86,6 +86,9 @@ class CycleMonitor:
         # Program picked by the user for the running cycle.
         self.selected_program: str | None = None
         self._matcher: CycleMatcher | None = None
+        # Whether the most recently finished cycle was recorded, so labelling
+        # after a partial or short cycle doesn't relabel an older one.
+        self._last_finished_recorded = True
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}"
         )
@@ -134,7 +137,8 @@ class CycleMonitor:
         cycle = Cycle(
             start=start,
             readings=readings,
-            observed_start=current.get("observed_start", True),
+            # Saved before this was tracked, so it may have been joined part way.
+            observed_start=current.get("observed_start", False),
         )
         self.detector.resume(cycle, dt_util.utcnow())
 
@@ -176,12 +180,14 @@ class CycleMonitor:
 
     def _on_end(self, cycle: Cycle) -> None:
         assert cycle.end is not None
+        self._last_finished_recorded = False
         if not cycle.observed_start:
             _LOGGER.debug("%s cycle joined part way, not recorded", self.power_entity)
         elif cycle.end - cycle.start < MIN_CYCLE_DURATION:
             _LOGGER.debug("%s cycle too short, not recorded", self.power_entity)
         else:
             self._record(cycle)
+            self._last_finished_recorded = True
         self.selected_program = None
         self._matcher = None
         self.estimate = None
@@ -284,7 +290,16 @@ class CycleMonitor:
             if self.selected_program:
                 return self.selected_program
             return self.estimate.program if self.estimate else None
-        return self.last_cycle["program"] if self.last_cycle else None
+        return self.labelled_cycle["program"] if self.labelled_cycle else None
+
+    @property
+    def labelled_cycle(self) -> dict[str, Any] | None:
+        """The recorded cycle the program select labels when not running.
+
+        None when the cycle that just finished wasn't recorded, so labelling
+        then doesn't relabel an older cycle.
+        """
+        return self.last_cycle if self._last_finished_recorded else None
 
     @callback
     def async_set_program(self, program: str | None) -> None:
@@ -293,13 +308,26 @@ class CycleMonitor:
             self.selected_program = program
             self._refresh()
             return
-        if (last := self.last_cycle) is None:
+        if (last := self.labelled_cycle) is None:
             return
         last["program"] = program
         last["label_source"] = "user" if program else None
         self._prune()
         self._store.async_delay_save(self._data_to_save, 0)
         self._notify()
+
+    @callback
+    def async_forget_cycle(self, cycle_id: str) -> bool:
+        """Delete a recorded cycle. Returns whether it was found."""
+        remaining = [c for c in self.cycles if c["id"] != cycle_id]
+        if len(remaining) == len(self.cycles):
+            return False
+        self.cycles = remaining
+        # Rebuild matching for a running cycle without the forgotten one.
+        self._matcher = None
+        self._store.async_delay_save(self._data_to_save, 0)
+        self._refresh()
+        return True
 
     # Storage
 

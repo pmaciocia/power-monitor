@@ -15,6 +15,10 @@ CONF_END_DELAY = "end_delay"
 CONF_STALE_TIMEOUT = "stale_timeout"
 CONF_FINISHED_TIMEOUT = "finished_timeout"
 
+SERVICE_FORGET_CYCLE = "forget_cycle"
+ATTR_CONFIG_ENTRY_ID = "config_entry_id"
+ATTR_CYCLE_ID = "cycle_id"
+
 # Washing machine defaults, from a machine that idles at ~2 W, pauses at
 # ~2.5 W between drum movements for up to ~90 s, and reads 0 W once done.
 DEFAULT_OPTIONS = {
