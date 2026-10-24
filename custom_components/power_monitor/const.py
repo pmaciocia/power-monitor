@@ -14,6 +14,7 @@ CONF_END_POWER = "end_power"
 CONF_END_DELAY = "end_delay"
 CONF_STALE_TIMEOUT = "stale_timeout"
 CONF_FINISHED_TIMEOUT = "finished_timeout"
+CONF_MAX_POWER = "max_power"
 
 SERVICE_FORGET_CYCLE = "forget_cycle"
 ATTR_CONFIG_ENTRY_ID = "config_entry_id"
@@ -29,6 +30,10 @@ DEFAULT_OPTIONS = {
     CONF_END_DELAY: 5,  # min
     CONF_STALE_TIMEOUT: 5,  # min, 0 disables
     CONF_FINISHED_TIMEOUT: 60,  # min, 0 keeps finished until the next cycle
+    # W, 0 disables. Readings above this are ignored: some plugs occasionally
+    # report garbage such as 107374182.4 W (2^30 / 10). Above what a 13 A
+    # socket can supply, so real readings are never dropped.
+    CONF_MAX_POWER: 3500.0,
 }
 
 # Resolution cycles are recorded and matched at.

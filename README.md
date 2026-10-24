@@ -16,10 +16,11 @@ You add one entry per appliance. Each entry creates a device with:
 
 ## How it works
 
-1. **Detection** (`detector.py`): a cycle starts once power has been at or above *start power* for *start delay*. Dips shorter than the start delay, like drum pauses, don't reset it. It ends when power stays below *end power* for *end delay*. If the sensor sends nothing for the *no-update timeout*, power is treated as 0 W from its last update. This is needed because smoothing filters hold their last value once the appliance switches off.
-2. **Recording**: each finished cycle is stored as 30 s time-weighted averages (`.storage/power_monitor.<entry_id>`). Cycles under 10 minutes aren't recorded. Neither are cycles already running when monitoring began, which are cycles not preceded by a quiet spell at least as long as the end delay.
-3. **Matching** (`matcher.py`): while a cycle runs, it is compared against the start of every recorded cycle using open-ended dynamic time warping. This finds how far through each recorded cycle the current one has got, even when phases run longer or shorter. The closest recorded cycles give the remaining time. The closest labelled ones give the program.
-4. **Labelling**: pick a program in the select during a run or after it. A cycle with no program picked is labelled with the detected program only when that program clearly beats the next closest one.
+1. **Readings**: readings above *maximum power* (default 3,500 W) or below 0 W are ignored as glitches. This lets you use a plug's raw sensor without a smoothing filter in front of it.
+2. **Detection** (`detector.py`): a cycle starts once power has been at or above *start power* for *start delay*. Dips shorter than the start delay, like drum pauses, don't reset it. It ends when power stays below *end power* for *end delay*. If the sensor sends nothing for the *no-update timeout*, power is treated as 0 W from its last update. This is needed because smoothing filters hold their last value once the appliance switches off.
+3. **Recording**: each finished cycle is stored as 30 s time-weighted averages (`.storage/power_monitor.<entry_id>`). Cycles under 10 minutes aren't recorded. Neither are cycles already running when monitoring began, which are cycles not preceded by a quiet spell at least as long as the end delay.
+4. **Matching** (`matcher.py`): while a cycle runs, it is compared against the start of every recorded cycle using open-ended dynamic time warping. This finds how far through each recorded cycle the current one has got, even when phases run longer or shorter. The closest recorded cycles give the remaining time. The closest labelled ones give the program.
+5. **Labelling**: pick a program in the select during a run or after it. A cycle with no program picked is labelled with the detected program only when that program clearly beats the next closest one.
 
 You need at least one recorded cycle before end times are estimated, and at least one labelled cycle per program before that program can be detected.
 

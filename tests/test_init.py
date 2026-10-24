@@ -15,6 +15,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 
 from custom_components.power_monitor.const import (
+    CONF_MAX_POWER,
     CONF_POWER_ENTITY,
     CONF_PROGRAMS,
     DEFAULT_OPTIONS,
@@ -273,3 +274,39 @@ async def test_reconfigure_rejects_sensor_monitored_by_other_entry(
 
     assert result["reason"] == "already_configured"
     assert entry.data[CONF_POWER_ENTITY] == POWER
+
+
+# Values the user's plug has really reported.
+SPIKES = [107374182.4, 5368709.12, -5368709.12]
+
+
+async def test_spikes_are_ignored(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    entry = await setup(hass)
+
+    # A spike while idle doesn't start anything.
+    await run(hass, freezer, IDLE + [SPIKES[0]] + IDLE)
+    assert hass.states.get("sensor.washing_machine_state").state == "idle"
+
+    # Spikes mid-wash and while it winds down never reach the recording.
+    await run(hass, freezer, WASH[:30] + SPIKES + WASH[30:62] + [SPIKES[0]] + WASH[62:])
+    assert hass.states.get("sensor.washing_machine_state").state == "finished"
+    (cycle,) = entry.runtime_data.cycles
+    assert max(cycle["samples"]) <= 2000
+    assert min(cycle["samples"]) >= 0
+    assert cycle["energy_kwh"] < 1
+
+
+async def test_max_power_zero_disables_limit(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    entry = await setup(hass)
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_MAX_POWER: 0}
+    )
+    await hass.async_block_till_done()
+
+    await run(hass, freezer, IDLE + [5000.0] * 4)
+
+    assert hass.states.get("sensor.washing_machine_state").state == "running"

@@ -31,6 +31,7 @@ from .const import (
     CONF_END_DELAY,
     CONF_END_POWER,
     CONF_FINISHED_TIMEOUT,
+    CONF_MAX_POWER,
     CONF_POWER_ENTITY,
     CONF_PROGRAMS,
     CONF_STALE_TIMEOUT,
@@ -76,6 +77,7 @@ class CycleMonitor:
         options = {**DEFAULT_OPTIONS, **entry.options}
         self.power_entity: str = entry.data[CONF_POWER_ENTITY]
         self.configured_programs: list[str] = options[CONF_PROGRAMS]
+        self._max_power: float = options[CONF_MAX_POWER]
         self.detector = CycleDetector(
             detector_config(options), on_start=self._on_start, on_end=self._on_end
         )
@@ -118,7 +120,7 @@ class CycleMonitor:
             async_track_time_interval(self.hass, self._handle_tick, STEP)
         )
         if state := self.hass.states.get(self.power_entity):
-            if (power := _power(state.state)) is not None:
+            if (power := self._power(state.state)) is not None:
                 self.detector.update(state.last_reported, power)
         self._refresh()
 
@@ -161,10 +163,25 @@ class CycleMonitor:
         self, event: Event[EventStateChangedData] | Event[EventStateReportedData]
     ) -> None:
         state = event.data["new_state"]
-        if state is None or (power := _power(state.state)) is None:
+        if state is None or (power := self._power(state.state)) is None:
             return
         self.detector.update(state.last_reported, power)
         self._refresh()
+
+    def _power(self, state: str) -> float | None:
+        """The reading in watts, or None if it's missing or implausible."""
+        if state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            return None
+        try:
+            power = float(state)
+        except ValueError:
+            return None
+        # Spikes are dropped rather than clamped, so they never reach the
+        # detector or the recorded cycles.
+        if power < 0 or (self._max_power and power > self._max_power):
+            _LOGGER.debug("%s ignoring implausible %s W", self.power_entity, power)
+            return None
+        return power
 
     @callback
     def _handle_tick(self, now: datetime) -> None:
@@ -344,12 +361,3 @@ class CycleMonitor:
                 ],
             }
         return data
-
-
-def _power(state: str) -> float | None:
-    if state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-        return None
-    try:
-        return float(state)
-    except ValueError:
-        return None

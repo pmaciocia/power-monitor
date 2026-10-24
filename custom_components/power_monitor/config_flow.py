@@ -21,6 +21,7 @@ from .const import (
     CONF_END_DELAY,
     CONF_END_POWER,
     CONF_FINISHED_TIMEOUT,
+    CONF_MAX_POWER,
     CONF_POWER_ENTITY,
     CONF_PROGRAMS,
     CONF_STALE_TIMEOUT,
@@ -57,6 +58,7 @@ OPTIONS_SCHEMA = vol.Schema(
         vol.Required(CONF_END_DELAY): _number(120, UnitOfTime.MINUTES),
         vol.Required(CONF_STALE_TIMEOUT): _number(120, UnitOfTime.MINUTES),
         vol.Required(CONF_FINISHED_TIMEOUT): _number(1440, UnitOfTime.MINUTES),
+        vol.Required(CONF_MAX_POWER): _number(100000, UnitOfPower.WATT, 1),
     }
 )
 

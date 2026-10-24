@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3
+
+### Added
+
+- **Maximum power** setting (default 3,500 W). Readings above it, and any below 0 W, are ignored as glitches, so they never reach detection or recorded cycles. Some plugs occasionally report garbage such as 107,374,182.4 W. You can now use a plug's raw power sensor directly instead of a smoothing filter. Smoothing filters lag and can hold their last value after the appliance switches off. Set it to 0 to turn it off.
+
 ## 0.1.2
 
 ### Fixed
