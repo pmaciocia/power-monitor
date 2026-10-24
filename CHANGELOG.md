@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.4
+
+### Added
+
+- **Power sensor** diagnostic sensor on the appliance's device, showing which power sensor it monitors (changed with Reconfigure).
+- When the power sensor belongs to a device, such as a smart plug, the appliance's device shows **Connected via** that device, linking straight to it. The link updates after a Reconfigure, and is removed if the new sensor has no device (e.g. a filter helper).
+
 ## 0.1.3
 
 ### Added

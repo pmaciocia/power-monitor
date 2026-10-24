@@ -7,6 +7,7 @@ from datetime import timedelta
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.util import dt as dt_util
 import pytest
 from pytest_homeassistant_custom_component.common import (
@@ -310,3 +311,39 @@ async def test_max_power_zero_disables_limit(
     await run(hass, freezer, IDLE + [5000.0] * 4)
 
     assert hass.states.get("sensor.washing_machine_state").state == "running"
+
+
+async def test_device_shows_power_sensor_and_plug(hass: HomeAssistant) -> None:
+    plug_entry = MockConfigEntry(domain="zwave_js")
+    plug_entry.add_to_hass(hass)
+    plug = dr.async_get(hass).async_get_or_create(
+        config_entry_id=plug_entry.entry_id,
+        identifiers={("zwave_js", "plug")},
+        name="Washing machine plug",
+    )
+    er.async_get(hass).async_get_or_create(
+        "sensor",
+        "zwave_js",
+        "plug-power",
+        suggested_object_id="washer_power",
+        device_id=plug.id,
+        config_entry=plug_entry,
+    )
+    entry = await setup(hass)
+
+    assert hass.states.get("sensor.washing_machine_power_sensor").state == POWER
+    (device,) = dr.async_entries_for_config_entry(dr.async_get(hass), ENTRY_ID)
+    assert device.via_device_id == plug.id
+
+    # A sensor with no device, like a filter helper, clears the link.
+    hass.states.async_set("sensor.washer_power_filtered", "0", {})
+    result = await entry.start_reconfigure_flow(hass)
+    await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_POWER_ENTITY: "sensor.washer_power_filtered"}
+    )
+    await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.washing_machine_power_sensor")
+    assert state.state == "sensor.washer_power_filtered"
+    (device,) = dr.async_entries_for_config_entry(dr.async_get(hass), ENTRY_ID)
+    assert device.via_device_id is None

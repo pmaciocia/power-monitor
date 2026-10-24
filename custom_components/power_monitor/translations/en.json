@@ -84,6 +84,9 @@
       },
       "recorded_cycles": {
         "name": "Recorded cycles"
+      },
+      "power_entity": {
+        "name": "Power sensor"
       }
     }
   },

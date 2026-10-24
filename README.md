@@ -13,6 +13,9 @@ You add one entry per appliance. Each entry creates a device with:
 | `sensor.<name>_detected_program` | program of the running or last cycle. Attributes: `source`, `confidence` |
 | `select.<name>_program` | set it during a run to override detection, or after a run to label it |
 | `sensor.<name>_recorded_cycles` | (diagnostic) number of recorded cycles. Attribute `cycles` lists each one's `id`, `program`, `start` and `minutes` |
+| `sensor.<name>_power_sensor` | (diagnostic) entity id of the power sensor being monitored |
+
+If the power sensor belongs to a device, such as the smart plug, the appliance's device shows **Connected via** that device.
 
 ## How it works
 

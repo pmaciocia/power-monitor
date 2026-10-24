@@ -29,6 +29,7 @@ async def async_setup_entry(
             EstimatedEndSensor(monitor, "estimated_end"),
             ProgramSensor(monitor, "detected_program"),
             RecordedCyclesSensor(monitor, "recorded_cycles"),
+            PowerEntitySensor(monitor, "power_entity"),
         ]
     )
 
@@ -119,6 +120,16 @@ class ProgramSensor(PowerMonitorEntity, SensorEntity):
             "source": last["label_source"] if last else None,
             "confidence": None,
         }
+
+
+class PowerEntitySensor(PowerMonitorEntity, SensorEntity):
+    """The power sensor being monitored, changed with Reconfigure."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    @property
+    def native_value(self) -> str:
+        return self.monitor.power_entity
 
 
 class RecordedCyclesSensor(PowerMonitorEntity, SensorEntity):

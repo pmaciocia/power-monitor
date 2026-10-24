@@ -6,7 +6,11 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    entity_registry as er,
+)
 from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
 
@@ -61,10 +65,31 @@ async def async_setup_entry(
     monitor = CycleMonitor(hass, entry)
     await monitor.async_start()
     entry.runtime_data = monitor
+    _link_to_power_device(hass, entry, monitor.power_entity)
     entry.async_on_unload(monitor.async_stop)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+def _link_to_power_device(
+    hass: HomeAssistant, entry: ConfigEntry, power_entity: str
+) -> None:
+    """Show the power sensor's device (e.g. the plug) as "Connected via".
+
+    Cleared when the power sensor has no device, e.g. a filter helper, so a
+    reconfigure doesn't leave a stale link.
+    """
+    entity = er.async_get(hass).async_get(power_entity)
+    device_registry = dr.async_get(hass)
+    device = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, entry.entry_id)},
+        name=entry.title,
+    )
+    via_device_id = entity.device_id if entity else None
+    if device.via_device_id != via_device_id:
+        device_registry.async_update_device(device.id, via_device_id=via_device_id)
 
 
 async def async_unload_entry(
